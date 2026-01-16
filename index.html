@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Royal Mail Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚚 Royal Mail Tracker</h1>
+            <p class="subtitle">Track your Royal Mail package and get browser notifications</p>
+        </header>
+
+        <main>
+            <section class="tracking-form" id="trackingForm">
+                <h2>Enter Tracking ID</h2>
+                <form id="addTrackingForm">
+                    <div class="form-group">
+                        <input 
+                            type="text" 
+                            id="trackingId" 
+                            placeholder="e.g., AB123456789GB" 
+                            required
+                            autocomplete="off"
+                        >
+                        <small class="help-text">Royal Mail tracking format: 2 letters + 9 digits + 2 letters (e.g., AB123456789GB)</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="enableNotifications">
+                            <span>Enable browser notifications for updates</span>
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Start Tracking</button>
+                </form>
+                <div id="validationError" class="error-message" style="display: none;"></div>
+            </section>
+
+            <section class="tracking-status" id="trackingStatus" style="display: none;">
+                <h2>Tracking Status</h2>
+                <div class="status-card">
+                    <div class="status-header">
+                        <h3 id="currentTrackingId"></h3>
+                        <span class="status-badge" id="statusBadge"></span>
+                    </div>
+                    <div class="status-body">
+                        <div class="status-info">
+                            <strong>Status:</strong> <span id="currentStatus">Checking...</span>
+                        </div>
+                        <div class="status-info">
+                            <strong>Last Update:</strong> <span id="lastUpdate">Never</span>
+                        </div>
+                        <div class="status-info">
+                            <strong>Next Check:</strong> <span id="nextCheck">-</span>
+                        </div>
+                        <div class="status-info">
+                            <strong>Notifications:</strong> <span id="notificationStatus">Disabled</span>
+                        </div>
+                    </div>
+                    <div class="status-history" id="statusHistory">
+                        <h4>Tracking History</h4>
+                        <div id="historyList" class="history-list">
+                            <p class="no-history">No tracking events yet</p>
+                        </div>
+                    </div>
+                    <button id="stopTrackingBtn" class="btn btn-danger">Stop Tracking</button>
+                </div>
+            </section>
+
+            <section class="info-section">
+                <h3>How it works</h3>
+                <ol>
+                    <li>Enter your Royal Mail tracking ID</li>
+                    <li>Optionally enable browser notifications</li>
+                    <li>We'll check for updates every 15 minutes</li>
+                    <li>Get notified when your package status changes</li>
+                    <li>Tracking stops automatically when delivered</li>
+                </ol>
+            </section>
+        </main>
+
+        <footer>
+            <p>Note: This app runs entirely in your browser. No data is sent to external servers.</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
