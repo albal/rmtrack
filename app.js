@@ -256,8 +256,8 @@ class RoyalMailTracker {
                 this.stopPeriodicCheck();
             }
 
-            // Send notification if enabled and status changed
-            if (this.trackingData.notificationsEnabled && statusChanged) {
+            // Send notification if enabled
+            if (this.trackingData.notificationsEnabled) {
                 this.sendNotification(newStatus.status);
             }
         }
@@ -349,7 +349,14 @@ class RoyalMailTracker {
     loadTrackingData() {
         const data = localStorage.getItem('rmtrack_data');
         if (data) {
-            this.trackingData = JSON.parse(data);
+            try {
+                this.trackingData = JSON.parse(data);
+            } catch (error) {
+                console.error('Failed to load tracking data:', error);
+                // Clear corrupted data
+                localStorage.removeItem('rmtrack_data');
+                this.trackingData = null;
+            }
         }
     }
 }
