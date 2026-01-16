@@ -1,15 +1,16 @@
-// Royal Mail Tracking App
+// Royal Mail Tracking App - Cloudflare Workers Version
 class RoyalMailTracker {
     constructor() {
         this.trackingData = null;
         this.checkInterval = null;
         this.CHECK_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+        this.API_BASE = '/api';
         this.init();
     }
 
     init() {
-        // Load existing tracking data
-        this.loadTrackingData();
+        // Load existing tracking data from localStorage (for session persistence)
+        this.loadLocalSession();
         
         // Set up event listeners
         document.getElementById('addTrackingForm').addEventListener('submit', (e) => {
@@ -27,6 +28,7 @@ class RoyalMailTracker {
         // If we have tracking data, resume tracking
         if (this.trackingData && !this.trackingData.delivered) {
             this.showTrackingStatus();
+            this.loadFromAPI();
             this.startPeriodicCheck();
         }
     }
@@ -66,29 +68,55 @@ class RoyalMailTracker {
             }
         }
 
-        // Initialize tracking data
-        this.trackingData = {
-            trackingId: trackingId,
-            notificationsEnabled: enableNotifications && Notification.permission === 'granted',
-            startedAt: new Date().toISOString(),
-            lastChecked: null,
-            lastStatus: null,
-            history: [],
-            delivered: false
-        };
+        try {
+            // Call API to add tracking
+            const response = await fetch(`${this.API_BASE}/tracking`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    trackingId: trackingId,
+                    notificationsEnabled: enableNotifications && Notification.permission === 'granted'
+                })
+            });
 
-        this.saveTrackingData();
-        this.showTrackingStatus();
-        
-        // Perform initial check
-        await this.checkTrackingStatus();
-        
-        // Start periodic checking
-        this.startPeriodicCheck();
+            const data = await response.json();
 
-        // Clear form
-        trackingIdInput.value = '';
-        document.getElementById('enableNotifications').checked = false;
+            if (!response.ok) {
+                errorDiv.textContent = data.error || 'Failed to add tracking';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Initialize local tracking data
+            this.trackingData = {
+                trackingId: data.trackingId,
+                notificationsEnabled: data.notificationsEnabled,
+                startedAt: new Date().toISOString(),
+                lastChecked: new Date().toISOString(),
+                lastStatus: data.status,
+                history: [{ status: data.status, timestamp: new Date().toISOString() }],
+                delivered: data.delivered
+            };
+
+            this.saveLocalSession();
+            this.showTrackingStatus();
+            
+            // Load full data from API
+            await this.loadFromAPI();
+            
+            // Start periodic checking
+            this.startPeriodicCheck();
+
+            // Clear form
+            trackingIdInput.value = '';
+            document.getElementById('enableNotifications').checked = false;
+        } catch (error) {
+            console.error('Error adding tracking:', error);
+            errorDiv.textContent = 'Failed to connect to server. Please try again.';
+            errorDiv.style.display = 'block';
+        }
     }
 
     async requestNotificationPermission() {
@@ -112,7 +140,7 @@ class RoyalMailTracker {
     async registerServiceWorker() {
         if ('serviceWorker' in navigator) {
             try {
-                const registration = await navigator.serviceWorker.register('service-worker.js');
+                const registration = await navigator.serviceWorker.register('/service-worker.js');
                 console.log('Service Worker registered:', registration);
             } catch (error) {
                 console.log('Service Worker registration failed:', error);
@@ -225,6 +253,36 @@ class RoyalMailTracker {
         });
     }
 
+    async loadFromAPI() {
+        if (!this.trackingData || !this.trackingData.trackingId) return;
+
+        try {
+            const response = await fetch(`${this.API_BASE}/tracking/${this.trackingData.trackingId}`);
+            
+            if (!response.ok) {
+                console.error('Failed to load tracking data');
+                return;
+            }
+
+            const data = await response.json();
+            
+            this.trackingData = {
+                trackingId: data.trackingId,
+                notificationsEnabled: data.notificationsEnabled,
+                startedAt: data.startedAt,
+                lastChecked: data.lastChecked,
+                lastStatus: data.lastStatus,
+                history: data.history,
+                delivered: data.delivered
+            };
+
+            this.saveLocalSession();
+            this.updateStatusDisplay();
+        } catch (error) {
+            console.error('Error loading tracking data:', error);
+        }
+    }
+
     async checkTrackingStatus() {
         if (!this.trackingData || this.trackingData.delivered) {
             return;
@@ -232,63 +290,42 @@ class RoyalMailTracker {
 
         console.log('Checking tracking status for:', this.trackingData.trackingId);
 
-        // Simulate API call to Royal Mail
-        // In a real implementation, this would call the Royal Mail API
-        const newStatus = await this.fetchTrackingStatus(this.trackingData.trackingId);
-
-        this.trackingData.lastChecked = new Date().toISOString();
-
-        // Check if status has changed
-        const statusChanged = this.trackingData.lastStatus !== newStatus.status;
-
-        if (statusChanged) {
-            this.trackingData.lastStatus = newStatus.status;
-            
-            // Add to history
-            this.trackingData.history.push({
-                timestamp: new Date().toISOString(),
-                status: newStatus.status
+        try {
+            const response = await fetch(`${this.API_BASE}/tracking/${this.trackingData.trackingId}/check`, {
+                method: 'POST'
             });
 
-            // Check if delivered
-            if (newStatus.delivered) {
-                this.trackingData.delivered = true;
-                this.stopPeriodicCheck();
+            if (!response.ok) {
+                console.error('Failed to check tracking status');
+                return;
             }
 
-            // Send notification if enabled
-            if (this.trackingData.notificationsEnabled) {
-                this.sendNotification(newStatus.status);
+            const data = await response.json();
+
+            // Update local data
+            this.trackingData.lastStatus = data.status;
+            this.trackingData.delivered = data.delivered;
+            this.trackingData.lastChecked = new Date().toISOString();
+
+            // If status changed, reload full data from API
+            if (data.statusChanged) {
+                await this.loadFromAPI();
+
+                // Stop checking if delivered
+                if (data.delivered) {
+                    this.stopPeriodicCheck();
+                }
+
+                // Send notification if enabled
+                if (data.notificationsEnabled) {
+                    this.sendNotification(data.status);
+                }
             }
-        }
 
-        this.saveTrackingData();
-        this.updateStatusDisplay();
-    }
-
-    /**
-     * Simulate fetching tracking status from Royal Mail API
-     * In a real implementation, this would make an API call
-     */
-    async fetchTrackingStatus(trackingId) {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Mock data - simulate different statuses based on how long tracking has been active
-        const startTime = new Date(this.trackingData.startedAt).getTime();
-        const elapsedMinutes = (Date.now() - startTime) / 60000;
-
-        // Create a progressive status flow
-        if (elapsedMinutes < 1) {
-            return { status: 'Item received by Royal Mail', delivered: false };
-        } else if (elapsedMinutes < 2) {
-            return { status: 'In transit to delivery depot', delivered: false };
-        } else if (elapsedMinutes < 3) {
-            return { status: 'At local delivery office', delivered: false };
-        } else if (elapsedMinutes < 4) {
-            return { status: 'Out for delivery', delivered: false };
-        } else {
-            return { status: 'Delivered and signed for', delivered: true };
+            this.saveLocalSession();
+            this.updateStatusDisplay();
+        } catch (error) {
+            console.error('Error checking tracking status:', error);
         }
     }
 
@@ -329,33 +366,56 @@ class RoyalMailTracker {
         }
     }
 
-    stopTracking() {
+    async stopTracking() {
         if (confirm('Are you sure you want to stop tracking this package?')) {
+            if (this.trackingData && this.trackingData.trackingId) {
+                try {
+                    // Delete from server
+                    await fetch(`${this.API_BASE}/tracking/${this.trackingData.trackingId}`, {
+                        method: 'DELETE'
+                    });
+                } catch (error) {
+                    console.error('Error deleting tracking:', error);
+                }
+            }
+
             this.stopPeriodicCheck();
             this.trackingData = null;
-            this.saveTrackingData();
+            this.saveLocalSession();
             this.hideTrackingStatus();
         }
     }
 
-    saveTrackingData() {
+    saveLocalSession() {
         if (this.trackingData) {
-            localStorage.setItem('rmtrack_data', JSON.stringify(this.trackingData));
+            localStorage.setItem('rmtrack_session', JSON.stringify({
+                trackingId: this.trackingData.trackingId
+            }));
         } else {
-            localStorage.removeItem('rmtrack_data');
+            localStorage.removeItem('rmtrack_session');
         }
     }
 
-    loadTrackingData() {
-        const data = localStorage.getItem('rmtrack_data');
+    loadLocalSession() {
+        const data = localStorage.getItem('rmtrack_session');
         if (data) {
             try {
-                this.trackingData = JSON.parse(data);
+                const session = JSON.parse(data);
+                if (session.trackingId) {
+                    // Initialize with minimal data, will load from API
+                    this.trackingData = {
+                        trackingId: session.trackingId,
+                        notificationsEnabled: false,
+                        startedAt: null,
+                        lastChecked: null,
+                        lastStatus: null,
+                        history: [],
+                        delivered: false
+                    };
+                }
             } catch (error) {
-                console.error('Failed to load tracking data:', error);
-                // Clear corrupted data
-                localStorage.removeItem('rmtrack_data');
-                this.trackingData = null;
+                console.error('Failed to load session:', error);
+                localStorage.removeItem('rmtrack_session');
             }
         }
     }

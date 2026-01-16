@@ -7,6 +7,7 @@ yarn-error.log*
 # Build output
 dist/
 build/
+.wrangler/
 
 # IDE
 .vscode/
@@ -27,3 +28,8 @@ temp/
 # Environment
 .env
 .env.local
+.dev.vars
+
+# Cloudflare
+.wrangler/
+wrangler.toml.backup
