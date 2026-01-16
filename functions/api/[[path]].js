@@ -302,14 +302,15 @@ export async function onRequest(context) {
     return addTracking(request, env);
   }
 
-  if (path.startsWith('/api/tracking/') && request.method === 'GET') {
-    const trackingId = path.split('/api/tracking/')[1];
-    return getTracking(trackingId, env);
-  }
-
+  // Check endpoint must be matched before generic GET to avoid conflict
   if (path.startsWith('/api/tracking/') && path.endsWith('/check') && request.method === 'POST') {
     const trackingId = path.split('/api/tracking/')[1].replace('/check', '');
     return updateTracking(trackingId, env);
+  }
+
+  if (path.startsWith('/api/tracking/') && request.method === 'GET') {
+    const trackingId = path.split('/api/tracking/')[1];
+    return getTracking(trackingId, env);
   }
 
   if (path.startsWith('/api/tracking/') && request.method === 'DELETE') {
