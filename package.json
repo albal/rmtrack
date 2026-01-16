@@ -1,0 +1,24 @@
+{
+  "name": "rmtrack",
+  "version": "1.0.0",
+  "description": "Royal Mail tracking web app with Cloudflare Workers and D1",
+  "scripts": {
+    "dev": "wrangler pages dev public --d1 DB=rmtrack-db",
+    "deploy": "wrangler pages deploy public",
+    "db:create": "wrangler d1 create rmtrack-db",
+    "db:migrate": "wrangler d1 execute rmtrack-db --file=migrations/0001_initial_schema.sql",
+    "db:migrate:remote": "wrangler d1 execute rmtrack-db --file=migrations/0001_initial_schema.sql --remote"
+  },
+  "keywords": [
+    "royal-mail",
+    "tracking",
+    "cloudflare",
+    "workers",
+    "d1"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
